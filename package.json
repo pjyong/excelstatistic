@@ -1,0 +1,31 @@
+{
+  "name": "electron-quick-start",
+  "version": "1.0.0",
+  "description": "A minimal Electron application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . MyFirstApp --no-prune --ignore=node_modules/electron-* --overwrite --platform=win32 --arch=x64 --electron-version=1.6.2"
+  },
+  "repository": "https://github.com/electron/electron-quick-start",
+  "keywords": [
+    "Electron",
+    "quick",
+    "start",
+    "tutorial",
+    "demo"
+  ],
+  "author": "GitHub",
+  "license": "CC0-1.0",
+  "devDependencies": {
+    "electron": "~1.6.2",
+    "electron-packager": "^8.7.0",
+    "fs": "0.0.1-security",
+    "xlsx": "^0.9.13"
+  },
+  "dependencies": {
+    "electron": "~1.6.2",
+    "fs": "0.0.1-security",
+    "xlsx": "^0.9.13"
+  }
+}
