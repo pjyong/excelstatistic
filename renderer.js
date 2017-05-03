@@ -15,7 +15,5 @@ ipc.on('result', function (event, data) {
         document.getElementById('selected-file').innerHTML = `请选择有文件的目录`
     }else{
         document.getElementById('selected-file').innerHTML = data
-
-
     }
 })
