@@ -1,0 +1,23 @@
+<html>
+  <script type="text/javascript">
+    const ipc = require('electron').ipcRenderer
+    const BrowserWindow = require('electron').remote.BrowserWindow
+
+    ipc.on('bg_accept_path', function (event, path, fromWindowId) {
+        console.log('accept bg_accept_path ' + path)
+        console.log(fromWindowId)
+        ipc.send('choose_dir', [path, fromWindowId])
+        // const fromWindow = BrowserWindow.fromId(fromWindowId)
+        // fromWindow.webContents.send('choose_dir', path)
+        // window.close()
+    })
+    ipc.on('read_path', function(event, data, fromWindowId){
+        console.log('child result:')
+        console.log(fromWindowId)
+        const fromWindow = BrowserWindow.fromId(data[1])
+        // console.log(fromWindow)
+        fromWindow.webContents.send('read_path_to_main', data)
+        // window.close()
+    })
+  </script>
+</html>

@@ -23,7 +23,7 @@ function createWindow () {
   }))
 
   // Open the DevTools.
-  // mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
@@ -74,81 +74,101 @@ function to_json(workbook) {
 	});
 	return result;
 }
-
-
-ipc.on('open-file-dialog', function (event) {
+ipc.on('open_file_dialog', function (event) {
     dialog.showOpenDialog({
         properties: ['openFile', 'openDirectory']
-    }, function (path) {
-        if(typeof path === 'undefined'){
+    }, function (choosePath) {
+        // event.sender.send('accept_dir_path', choosePath)
+
+        // 新建个窗口执行后台任务
+        var win = new BrowserWindow({
+            width: 400, height: 225
+        })
+        win.loadURL(url.format({
+            pathname: path.join(__dirname, 'invisible.html'),
+            protocol: 'file:',
+            slashes: true
+        }))
+        win.webContents.openDevTools()
+
+        win.webContents.on('did-finish-load', function () {
+            console.log('test')
+            win.webContents.send('bg_accept_path', choosePath, windowID)
+        })
+    })
+})
+
+ipc.on('choose_dir', function (event, arg) {
+    console.log(arg)
+    var choosePath = arg[0][0]
+    var fromWindowID = arg[1]
+    console.log(fromWindowID)
+    fs.readdir(choosePath, function(err, files){
+        if(files.length === 0){
+            event.sender.send('read_path', '没有找到任何文件', fromWindowID)
             return
         }
-        fs.readdir(path+'/', function(err, files){
-            if(files.length === 0){
-                event.sender.send('result', '')
-                return
-            }
-            files = files.filter(function(val){
-                // 匹配文件名称格式是否正确
-                return /^\d+_\d+\.xls$/.test(val)
-            })
-            if(files.length === 0){
-                event.sender.send('result', '')
-                return
-            }
-            var partnerSale = {}
-            files.forEach(function(file){
-                // event.sender.send('result', {type:'checkfile', data:file})
-
-                var workbook = xlsx.readFile(path+'/'+file)
-                var data = to_json(workbook)
-                if(typeof data['所有IC卡交易明细'] === undefined){
-                    return
-                }
-                data = data['所有IC卡交易明细']
-
-                data.forEach(function(val){
-                    if( val['业务类型'] === '加油' && typeof val['金额(分值)'] !== 'undefined'){
-                        if(typeof partnerSale[val['地点']] === 'undefined'){
-                            partnerSale[val['地点']] = {
-                                totalSale: 0,
-                                bonus: 0
-                            }
-                        }
-                        partnerSale[val['地点']]['totalSale'] += parseFloat(val['金额(分值)'], 10)
-                        partnerSale[val['地点']]['bonus'] += parseFloat(val['奖励分值'], 10)
-                    }
-                })
-            })
-            if(partnerSale === {}){
-                return
-            }
-
-            var _headers = ['站点名称', '消费金额', '奖励分']
-            var _data = []
-            for(var i in partnerSale){
-                _data.push({
-                    '站点名称': i,
-                    '消费金额': "_" + Math.round(partnerSale[i]['totalSale']),
-                    '奖励分': "_" + Math.round(partnerSale[i]['bonus'])
-                })
-            }
-            var headers = _headers.map((v, i) => Object.assign({}, {v: v, position: String.fromCharCode(65+i) + 1 })).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
-            var data = _data.map((v, i) => _headers.map((k, j) => Object.assign({}, { v: v[k], position: String.fromCharCode(65+j) + (i+2) }))).reduce((prev, next) => prev.concat(next)).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
-            var output = Object.assign({}, headers, data);
-            var outputPos = Object.keys(output);
-            var ref = outputPos[0] + ':' + outputPos[outputPos.length - 1];
-            // var finaldata = [];
-            newWorkbook = {
-                SheetNames: ['haha'],
-                Sheets:{
-                    'haha': Object.assign({}, output, { '!ref': ref })
-                }
-            }
-            xlsx.writeFile(newWorkbook, path + '/final.xlsx')
-
-            event.sender.send('result', '请查看生成excel文件'+path + '/final.xlsx')
-
+        files = files.filter(function(val){
+            // 匹配文件名称格式是否正确
+            return /^\d+_\d+\.xls$/.test(val)
         })
+        if(files.length === 0){
+            event.sender.send('read_path', '没有找到任何文件', fromWindowID)
+            return
+        }
+        var partnerSale = {}
+        files.forEach(function(file){
+            event.sender.send('read_path_one_by_one', file)
+            // sleep.sleep(3)
+            var workbook = xlsx.readFile(choosePath+'/'+file, {sheetRows:5100})
+            var data = to_json(workbook)
+            workbook = null
+            if(typeof data['所有IC卡交易明细'] === undefined){
+                return
+            }
+            data = data['所有IC卡交易明细']
+
+            data.forEach(function(val){
+                if( val['业务类型'] === '加油' && typeof val['金额(分值)'] !== 'undefined'){
+                    if(typeof partnerSale[val['地点']] === 'undefined'){
+                        partnerSale[val['地点']] = {
+                            totalSale: 0,
+                            bonus: 0
+                        }
+                    }
+                    partnerSale[val['地点']]['totalSale'] += parseFloat(val['金额(分值)'], 10)
+                    partnerSale[val['地点']]['bonus'] += parseFloat(val['奖励分值'], 10)
+                }
+            })
+        })
+        if( Object.keys(partnerSale).length === 0){
+            event.sender.send('read_path', '并没有统计到任何符合规则的信息')
+            return
+        }
+
+        var _headers = ['站点名称', '消费金额', '奖励分']
+        var _data = []
+        for(var i in partnerSale){
+            _data.push({
+                '站点名称': i,
+                '消费金额': "_" + Math.round(partnerSale[i]['totalSale']),
+                '奖励分': "_" + Math.round(partnerSale[i]['bonus'])
+            })
+        }
+        var headers = _headers.map((v, i) => Object.assign({}, {v: v, position: String.fromCharCode(65+i) + 1 })).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
+        var data = _data.map((v, i) => _headers.map((k, j) => Object.assign({}, { v: v[k], position: String.fromCharCode(65+j) + (i+2) }))).reduce((prev, next) => prev.concat(next)).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
+        var output = Object.assign({}, headers, data);
+        var outputPos = Object.keys(output);
+        var ref = outputPos[0] + ':' + outputPos[outputPos.length - 1];
+        // var finaldata = [];
+        newWorkbook = {
+            SheetNames: ['财务统计'],
+            Sheets:{
+                '财务统计': Object.assign({}, output, { '!ref': ref })
+            }
+        }
+        xlsx.writeFile(newWorkbook, choosePath + '/final.xlsx')
+
+        event.sender.send('read_path', '已经成功生成excel文件!!!'+choosePath + '/final.xlsx')
     })
 })
