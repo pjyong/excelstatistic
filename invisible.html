@@ -3,21 +3,17 @@
     const ipc = require('electron').ipcRenderer
     const BrowserWindow = require('electron').remote.BrowserWindow
 
-    ipc.on('bg_accept_path', function (event, path, fromWindowId) {
+    ipc.on('bg_accept_path', function (event, path) {
         console.log('accept bg_accept_path ' + path)
-        console.log(fromWindowId)
-        ipc.send('choose_dir', [path, fromWindowId])
+        ipc.send('choose_dir', path)
         // const fromWindow = BrowserWindow.fromId(fromWindowId)
         // fromWindow.webContents.send('choose_dir', path)
         // window.close()
     })
-    ipc.on('read_path', function(event, data, fromWindowId){
+    ipc.on('read_path', function(event, data){
         console.log('child result:')
-        console.log(fromWindowId)
-        const fromWindow = BrowserWindow.fromId(data[1])
-        // console.log(fromWindow)
-        fromWindow.webContents.send('read_path_to_main', data)
-        // window.close()
+        console.log(data)
+        window.close()
     })
   </script>
 </html>

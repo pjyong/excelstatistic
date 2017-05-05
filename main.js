@@ -23,7 +23,7 @@ function createWindow () {
   }))
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools()
+  // mainWindow.webContents.openDevTools()
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
@@ -67,7 +67,14 @@ const fs = require('fs')
 function to_json(workbook) {
 	var result = {};
 	workbook.SheetNames.forEach(function(sheetName) {
-		var roa = xlsx.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
+        var desired_cell = workbook.Sheets[sheetName]['E1']
+        var desired_value = (desired_cell ? desired_cell.v : undefined)
+        if( desired_value.trim() === '中国石化加油IC卡台帐对帐单'){
+            // 删除前面5行
+            var roa = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {range: 5});
+        } else {
+            var roa = xlsx.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
+        }
 		if(roa.length > 0){
 			result[sheetName] = roa;
 		}
@@ -78,34 +85,33 @@ ipc.on('open_file_dialog', function (event) {
     dialog.showOpenDialog({
         properties: ['openFile', 'openDirectory']
     }, function (choosePath) {
-        // event.sender.send('accept_dir_path', choosePath)
 
-        // 新建个窗口执行后台任务
-        var win = new BrowserWindow({
-            width: 400, height: 225
-        })
-        win.loadURL(url.format({
-            pathname: path.join(__dirname, 'invisible.html'),
-            protocol: 'file:',
-            slashes: true
-        }))
-        win.webContents.openDevTools()
+        event.sender.send('accept_dir_path', choosePath)
+        if(typeof choosePath !== 'undefined' ){
+            // 新建个窗口执行后台任务
+            var win = new BrowserWindow({
+                width: 400, height: 225, show: false
+            })
+            win.loadURL(url.format({
+                pathname: path.join(__dirname, 'invisible.html'),
+                protocol: 'file:',
+                slashes: true
+            }))
+            win.webContents.openDevTools()
 
-        win.webContents.on('did-finish-load', function () {
-            console.log('test')
-            win.webContents.send('bg_accept_path', choosePath, windowID)
-        })
+            win.webContents.on('did-finish-load', function () {
+                win.webContents.send('bg_accept_path', choosePath)
+            })
+        }
     })
 })
 
 ipc.on('choose_dir', function (event, arg) {
-    console.log(arg)
-    var choosePath = arg[0][0]
-    var fromWindowID = arg[1]
-    console.log(fromWindowID)
+    var choosePath = arg[0]
     fs.readdir(choosePath, function(err, files){
         if(files.length === 0){
-            event.sender.send('read_path', '没有找到任何文件', fromWindowID)
+            event.sender.send('read_path', '没有找到任何文件')
+            mainWindow.webContents.send('read_path', '没有找到任何文件')
             return
         }
         files = files.filter(function(val){
@@ -113,12 +119,15 @@ ipc.on('choose_dir', function (event, arg) {
             return /^\d+_\d+\.xls$/.test(val)
         })
         if(files.length === 0){
-            event.sender.send('read_path', '没有找到任何文件', fromWindowID)
+            mainWindow.webContents.send('read_path', '没有找到任何文件')
+            event.sender.send('read_path', '没有找到任何文件')
             return
         }
         var partnerSale = {}
         files.forEach(function(file){
-            event.sender.send('read_path_one_by_one', file)
+            mainWindow.webContents.send('read_path_one_by_one', file)
+            // mainWindow.webContents.send('read_path', '没有找到任何文件')
+
             // sleep.sleep(3)
             var workbook = xlsx.readFile(choosePath+'/'+file, {sheetRows:5100})
             var data = to_json(workbook)
@@ -133,26 +142,30 @@ ipc.on('choose_dir', function (event, arg) {
                     if(typeof partnerSale[val['地点']] === 'undefined'){
                         partnerSale[val['地点']] = {
                             totalSale: 0,
-                            bonus: 0
+                            bonus: 0,
+                            num: 0
                         }
                     }
                     partnerSale[val['地点']]['totalSale'] += parseFloat(val['金额(分值)'], 10)
                     partnerSale[val['地点']]['bonus'] += parseFloat(val['奖励分值'], 10)
+                    partnerSale[val['地点']]['num'] += parseFloat(val['数量'], 10)
                 }
             })
         })
         if( Object.keys(partnerSale).length === 0){
+            mainWindow.webContents.send('read_path', '并没有统计到任何符合规则的信息')
             event.sender.send('read_path', '并没有统计到任何符合规则的信息')
             return
         }
 
-        var _headers = ['站点名称', '消费金额', '奖励分']
+        var _headers = ['站点名称', '消费金额', '奖励分', '加油量']
         var _data = []
         for(var i in partnerSale){
             _data.push({
                 '站点名称': i,
                 '消费金额': "_" + Math.round(partnerSale[i]['totalSale']),
-                '奖励分': "_" + Math.round(partnerSale[i]['bonus'])
+                '奖励分': "_" + Math.round(partnerSale[i]['bonus']),
+                '加油量': "_" + Math.round(partnerSale[i]['num'])
             })
         }
         var headers = _headers.map((v, i) => Object.assign({}, {v: v, position: String.fromCharCode(65+i) + 1 })).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
@@ -168,7 +181,7 @@ ipc.on('choose_dir', function (event, arg) {
             }
         }
         xlsx.writeFile(newWorkbook, choosePath + '/final.xlsx')
-
+        mainWindow.webContents.send('read_path', '已经成功生成excel文件!!!'+choosePath + '/final.xlsx')
         event.sender.send('read_path', '已经成功生成excel文件!!!'+choosePath + '/final.xlsx')
     })
 })

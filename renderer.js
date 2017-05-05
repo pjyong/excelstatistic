@@ -19,16 +19,11 @@ ipc.on('accept_dir_path', function (event, choosePath) {
     if(choosePath !== null){
         appendHtml(choosePath, '您选择了目录:');
         appendHtml('请耐心等待...', '');
-        /*
-        setTimeout(function(){
-            ipc.send('choose_dir', path)
-        }, 1000)
-        */
 
     }
 })
 
-ipc.on('read_path_to_main', function (event, data) {
+ipc.on('read_path', function (event, data) {
     console.log('we get result')
     appendHtml(data, '读取结果:')
 })
