@@ -1,7 +1,7 @@
 {
-  "name": "electron-quick-start",
+  "name": "doctor-statistic-tool",
   "version": "1.0.0",
-  "description": "A minimal Electron application",
+  "description": "",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
