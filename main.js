@@ -64,54 +64,21 @@ const dialog = require('electron').dialog
 const xlsx = require('xlsx')
 const fs = require('fs')
 
+
 function to_json(workbook) {
-	let result = {};
+	var result = {};
 	workbook.SheetNames.forEach(function(sheetName) {
-        if(sheetName !== '所有IC卡交易明细'){
-            return
+        var desired_cell = workbook.Sheets[sheetName]['E1']
+        var desired_value = (desired_cell ? desired_cell.v : undefined)
+        if( desired_value.trim() === '中国石化加油IC卡台帐对帐单'){
+            // 删除前面5行
+            var roa = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {range: 5});
+        } else {
+            var roa = xlsx.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
         }
-        let roa = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {header: 'A'});
-
-        roa.forEach(function(val){
-            // 有两种格式的excel,吗的,现在不记得是哪两种格式的excel了!!!!!!!
-            let yewuleixing = 'C'
-            let jianglifenzhi = 'H'
-            let jine = 'G'
-            let zhandian = 'K'
-            let kahao = 'A'
-            let shijian = 'B'
-            let pinzhong = 'D'
-            if(val['D'] === '加油'){
-                yewuleixing = 'D'
-                jianglifenzhi = 'K'
-                jine = 'J'
-                zhandian = 'Q'
-                kahao = 'A'
-                shijian = 'B'
-                pinzhong = 'E'
-            }
-
-            // 过滤掉积分卡加油和没有奖励积分的
-            // if(val[yewuleixing]!== '加油'  || parseFloat(val[jianglifenzhi]) != 0 || parseFloat(val[jine]) == 0){
-            // 过滤掉积分卡加油
-            if(val[yewuleixing]!== '加油'  || parseFloat(val[jine]) == 0){
-                return
-            }
-            // 站点_卡号_日期_柴油[汽油]
-            let key = val[zhandian] + '_' + val[kahao] + '_' + val[shijian].substring(0,10)
-            if(val[pinzhong].indexOf('汽油') !== -1){
-                // 汽油
-                key = key + '_汽油'
-            }else{
-                // 柴油
-                key = key + '_柴油'
-            }
-
-            if( typeof result[key] === 'undefined' ){
-                result[key] = 0
-            }
-            result[key] += parseFloat(val[jine])
-        })
+		if(roa.length > 0){
+			result[sheetName] = roa;
+		}
 	});
 	return result;
 }
@@ -171,38 +138,51 @@ ipc.on('choose_dir', function (event, arg) {
         return
     }
 
-    let finalRes = {}
+    var partnerSale = {}
     files.forEach(function(file){
         mainWindow.webContents.send('read_path_one_by_one', file)
         var workbook = xlsx.readFile(file, {sheetRows:5100})
         var data = to_json(workbook)
         workbook = null
-        if(Object.values(data).length === 0){
+        if(typeof data['所有IC卡交易明细'] === undefined){
             return
         }
-        for(var i in data){
-            if( typeof finalRes[i] === 'undefined' ){
-                finalRes[i] = data[i]
-            }else {
-                finalRes[i] = parseFloat(finalRes[i])+ parseFloat(data[i])
+        data = data['所有IC卡交易明细']
+
+        data.forEach(function(val){
+            if( val['业务类型'] === '加油' && typeof val['金额(分值)'] !== 'undefined'){
+                if(typeof partnerSale[val['地点']] === 'undefined'){
+                    partnerSale[val['地点']] = {
+                        totalSale: 0,
+                        bonus: 0,
+                        num: 0
+                    }
+                }
+                partnerSale[val['地点']]['totalSale'] += parseFloat(val['金额(分值)'], 10)
+                partnerSale[val['地点']]['bonus'] += parseFloat(val['奖励分值'], 10)
+                partnerSale[val['地点']]['num'] += parseFloat(val['数量'], 10)
             }
-        }
+        })
+
+
     })
-    if(Object.values(finalRes).length === 0){
+
+
+
+    if( Object.keys(partnerSale).length === 0){
         mainWindow.webContents.send('read_path', '并没有统计到任何符合规则的信息')
         event.sender.send('read_path', '并没有统计到任何符合规则的信息')
         return
     }
-    var _headers = ['站点','卡号', '日期','油品', '金额']
+
+    var _headers = ['站点名称', '消费金额', '奖励分', '加油量']
     var _data = []
-    for(var i in finalRes){
-        let ar = i.split('_')
+    for(var i in partnerSale){
         _data.push({
-            '站点': ar[0],
-            '卡号': ar[1],
-            '日期': ar[2],
-            '油品': ar[3],
-            '金额': finalRes[i],
+            '站点名称': i,
+            '消费金额': "_" + Math.round(partnerSale[i]['totalSale']),
+            '奖励分': "_" + Math.round(partnerSale[i]['bonus']),
+            '加油量': "_" + Math.round(partnerSale[i]['num'])
         })
     }
     var headers = _headers.map((v, i) => Object.assign({}, {v: v, position: String.fromCharCode(65+i) + 1 })).reduce((prev, next) => Object.assign({}, prev, {[next.position]: {v: next.v}}), {});
@@ -210,6 +190,7 @@ ipc.on('choose_dir', function (event, arg) {
     var output = Object.assign({}, headers, data);
     var outputPos = Object.keys(output);
     var ref = outputPos[0] + ':' + outputPos[outputPos.length - 1];
+    // var finaldata = [];
     newWorkbook = {
         SheetNames: ['财务统计'],
         Sheets:{
