@@ -1,19 +1,13 @@
 <html>
-  <script type="text/javascript">
+<script type="text/javascript">
     const ipc = require('electron').ipcRenderer
     const BrowserWindow = require('electron').remote.BrowserWindow
 
     ipc.on('bg_accept_path', function (event, path) {
-        console.log('accept bg_accept_path ' + path)
         ipc.send('choose_dir', path)
-        // const fromWindow = BrowserWindow.fromId(fromWindowId)
-        // fromWindow.webContents.send('choose_dir', path)
-        // window.close()
     })
     ipc.on('read_path', function(event, data){
-        console.log('child result:')
-        console.log(data)
         window.close()
     })
-  </script>
+</script>
 </html>

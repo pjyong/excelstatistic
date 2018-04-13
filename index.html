@@ -1,28 +1,23 @@
 <!DOCTYPE html>
 <html>
-  <head>
+    <head>
     <meta charset="UTF-8">
-    <title>财务统计工具</title>
-    <link rel="stylesheet" href="assets/weui.min.css">
-    <link rel="stylesheet" href="assets/our.css">
+        <title>财务统计工具</title>
+        <link rel="stylesheet" href="assets/weui.min.css">
+        <link rel="stylesheet" href="assets/our.css">
+    </head>
+    <body>
+        <div class="page">
+            <div class="button-sp-area">
+                <a href="javascript:;" id="select-directory" class="weui-btn weui-btn_plain-primary">请选择导出文件所在目录</a>
+            </div>
+            <div id="result" class="weui-msg__desc" style="padding-top:20px;">
 
-  </head>
-  <body>
-    <div class="page">
-        <!-- All of the Node.js APIs are available in this renderer process. -->
-        <div class="button-sp-area">
-            <a href="javascript:;" id="select-directory" class="weui-btn weui-btn_plain-primary">请选择导出文件所在目录</a>
+            </div>
         </div>
-        <div id="result" class="weui-msg__desc" style="padding-top:20px;">
 
-        </div>
-    </div>
-
-    <script>
-      // You can also require other files to run in this process
-      require('./renderer.js')
-    </script>
-  </body>
-
-
+        <script>
+            require('./renderer.js')
+        </script>
+    </body>
 </html>
